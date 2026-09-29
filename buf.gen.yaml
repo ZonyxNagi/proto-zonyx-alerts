@@ -1,0 +1,28 @@
+version: v2
+clean: true
+managed:
+  enabled: true
+  override:
+    - file_option: go_package
+      path: v1
+      value: github.com/ZonyxNagi/proto-zonyx-alerts/pkg/api/v1;alertsv1
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.36.12
+    out: pkg/api
+    opt:
+      - paths=source_relative
+  - remote: buf.build/grpc/go:v1.6.2
+    out: pkg/api
+    opt:
+      - paths=source_relative
+  - remote: buf.build/grpc-ecosystem/gateway:v2.31.0
+    out: pkg/api
+    opt:
+      - paths=source_relative
+  - remote: buf.build/community/sudorandom-connect-openapi:v0.28.0
+    out: docs/openapi
+    opt:
+      - format=json
+      - only-googleapi-http
+      - short-service-tags
+      - short-operation-ids

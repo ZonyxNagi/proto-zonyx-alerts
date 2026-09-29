@@ -1,0 +1,15 @@
+version: v2
+modules:
+  - path: api/proto
+    name: buf.build/zonyxnagi/proto-zonyx-alerts
+deps:
+  - buf.build/bufbuild/protovalidate
+  - buf.build/googleapis/googleapis
+lint:
+  use:
+    - STANDARD
+  except:
+    - PACKAGE_DIRECTORY_MATCH
+breaking:
+  use:
+    - FILE

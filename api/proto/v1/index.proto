@@ -1,0 +1,856 @@
+syntax = "proto3";
+
+// This document describes the Zonyx Alerts API: ingestion of indoor-location
+// and tag-info events, tag registration, alert rule management, and alert
+// history.
+//
+// The event schema is provider-agnostic. Events from a location provider are
+// translated into this schema by the publisher before they reach the API.
+package zonyx.alerts.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/dayofweek.proto";
+
+// ---------------------------------------------------------------------------
+// Event payloads
+// ---------------------------------------------------------------------------
+
+// LocationEvent represents a single tag location event.
+//
+// Unless stated otherwise, every *_ts field in the event messages is a Unix
+// timestamp in milliseconds.
+message LocationEvent {
+  option (buf.validate.message).cel = {
+    id: "location_event.zone_names_match_ids"
+    message: "location_zone_names must have the same length as location_zone_ids"
+    expression: "size(this.location_zone_ids) == size(this.location_zone_names)"
+  };
+  option (buf.validate.message).cel = {
+    id: "location_event.location_xyz"
+    message: "location must be empty or have exactly 3 values [x, y, z]"
+    expression: "size(this.location) == 0 || size(this.location) == 3"
+  };
+
+  // tag_id is the unique identifier of the tag, as reported by the location provider.
+  string tag_id = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 64
+  }];
+  // tag_name is the human-readable name assigned to the tag by the provider, if any.
+  optional string tag_name = 2;
+  // color is the display color assigned to the tag by the provider, as a hex string (e.g. "#FF0000").
+  optional string color = 3;
+  // tag_group_name is the name of the provider tag group the tag belongs to, if any.
+  optional string tag_group_name = 4;
+  // location_type is the kind of location estimate the provider produced (observed: "position").
+  string location_type = 5 [(buf.validate.field).string = {min_len: 1}];
+  // location_movement_status is whether the provider considers the tag to be moving or
+  // stationary.
+  string location_movement_status = 6 [(buf.validate.field).string = {min_len: 1}];
+  // location_radius is the estimated accuracy radius of the position, in meters.
+  float location_radius = 7 [(buf.validate.field).float = {gte: 0}];
+  // location is the estimated [x, y, z] position of the tag, in meters. Empty
+  // when the provider could not estimate a position.
+  repeated double location = 8 [(buf.validate.field).repeated = {
+    min_items: 0
+    max_items: 3
+  }];
+  // location_ts is the event time, as a Unix timestamp in milliseconds: the time
+  // the location was estimated, or, when there is no position, the time the
+  // provider produced the event. It orders the events of a tag and is the time
+  // rule windows are evaluated against, so it must be set on every event.
+  uint64 location_ts = 9 [(buf.validate.field).uint64 = {gt: 0}];
+  // location_zone_ids are the unique identifiers of the zones the tag is
+  // currently inside. Zone identifiers are unique across the provider. Empty
+  // when the provider reports the tag in no zone, which is also how it reports
+  // that it lost the tag: the schema does not distinguish the two. The service
+  // reads the change of this list between consecutive events of a tag (see Rule).
+  repeated string location_zone_ids = 10 [(buf.validate.field).repeated = {
+    unique: true
+    items: {
+      string: {min_len: 1}
+    }
+  }];
+  // location_zone_names are the human-readable names of the zones in
+  // location_zone_ids, in the same order.
+  repeated string location_zone_names = 11;
+  // event_id uniquely identifies this event. It is assigned by the publisher
+  // (e.g. a UUID, or a hash of tag_id and location_ts) and stays the same across
+  // redeliveries, so the event is processed only once.
+  string event_id = 12 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 128
+  }];
+}
+
+// BatteryAlarm is the battery status of a tag, as defined by the location
+// provider (Quuppa: https://www.quuppa.com/documentation/QPE/topics/QPE_tags_definitions.html).
+enum BatteryAlarm {
+  // BATTERY_ALARM_UNSPECIFIED is the default value and must not be used. A value
+  // not yet received from the provider (null) is sent by omitting the field.
+  BATTERY_ALARM_UNSPECIFIED = 0;
+  // BATTERY_ALARM_OK means the battery level is good (provider value "ok").
+  BATTERY_ALARM_OK = 1;
+  // BATTERY_ALARM_LOW means the battery is getting low and the tag should be
+  // replaced soon (provider value "low").
+  BATTERY_ALARM_LOW = 2;
+}
+
+// TagInfoEvent represents a single tag info event (battery, tag health).
+//
+// Each state-like field has a companion *_ts field with the time that value
+// was last updated.
+message TagInfoEvent {
+  // tag_id is the unique identifier of the tag, as reported by the location provider.
+  string tag_id = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 64
+  }];
+  // last_packet_ts is the time the provider last received a radio packet from the tag.
+  uint64 last_packet_ts = 2 [(buf.validate.field).uint64 = {gt: 0}];
+  // tag_name is the human-readable name assigned to the tag by the provider, if any.
+  optional string tag_name = 3;
+  // color is the display color assigned to the tag by the provider, as a hex string (e.g. "#FF0000").
+  optional string color = 4;
+  // tag_group_name is the name of the provider tag group the tag belongs to, if any.
+  optional string tag_group_name = 5;
+  // battery_voltage is the tag battery voltage, in volts (e.g. 2.90).
+  optional float battery_voltage = 6;
+  // battery_voltage_ts is the time battery_voltage was last updated.
+  optional uint64 battery_voltage_ts = 7;
+  // battery_alarm is the battery status reported by the tag. Omitted when the
+  // provider has not reported it yet. The publisher maps the provider values
+  // "ok" and "low" to this enum and omits any other value.
+  optional BatteryAlarm battery_alarm = 8 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // battery_alarm_ts is the time battery_alarm was last updated.
+  optional uint64 battery_alarm_ts = 9;
+  // last_seen_ts is the time the tag was last seen by the provider.
+  uint64 last_seen_ts = 10;
+  // event_id uniquely identifies this event. It is assigned by the publisher
+  // (e.g. a UUID, or a hash of tag_id and last_packet_ts) and stays the same across
+  // redeliveries, so the event is processed only once.
+  string event_id = 11 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 128
+  }];
+}
+
+// ---------------------------------------------------------------------------
+// Ingest
+// ---------------------------------------------------------------------------
+
+// IngestLocationUpdateRequest delivers a LocationEvent. In HTTP, the request
+// body is the event itself.
+message IngestLocationUpdateRequest {
+  // event is the location event.
+  LocationEvent event = 1 [(buf.validate.field).required = true];
+}
+
+// IngestLocationUpdateResponse is empty; a successful (2xx) response confirms
+// the event was accepted.
+message IngestLocationUpdateResponse {}
+
+// IngestTagInfoUpdateRequest delivers a TagInfoEvent. In HTTP, the request
+// body is the event itself.
+message IngestTagInfoUpdateRequest {
+  // event is the tag info event.
+  TagInfoEvent event = 1 [(buf.validate.field).required = true];
+}
+
+// IngestTagInfoUpdateResponse is empty; a successful (2xx) response confirms
+// the event was accepted.
+message IngestTagInfoUpdateResponse {}
+
+// IngestService receives events from a location provider. It is independent of
+// the delivery channel (message queue, task queue or direct HTTP): any channel
+// that POSTs the event as the JSON request body can feed it.
+//
+// Delivery is at-least-once, so the same event may arrive more than once;
+// handlers deduplicate on the event's event_id. A non-2xx response may cause
+// the channel to deliver the event again.
+service IngestService {
+  // IngestLocationUpdate receives a location event.
+  rpc IngestLocationUpdate(IngestLocationUpdateRequest) returns (IngestLocationUpdateResponse) {
+    option (google.api.http) = {
+      post: "/v1/ingest/location"
+      body: "event"
+    };
+  }
+  // IngestTagInfoUpdate receives a tag info event.
+  rpc IngestTagInfoUpdate(IngestTagInfoUpdateRequest) returns (IngestTagInfoUpdateResponse) {
+    option (google.api.http) = {
+      post: "/v1/ingest/info"
+      body: "event"
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tag registry
+// ---------------------------------------------------------------------------
+
+// TagStatus is the registration status of a tag.
+enum TagStatus {
+  // TAG_STATUS_UNSPECIFIED is the default value and must not be used.
+  TAG_STATUS_UNSPECIFIED = 0;
+  // TAG_STATUS_ACTIVE means the tag is registered and may trigger alerts.
+  TAG_STATUS_ACTIVE = 1;
+  // TAG_STATUS_INACTIVE means the tag is registered but deactivated: its events still
+  // update its stored zones, but it raises no alerts and no alert records (see Rule).
+  TAG_STATUS_INACTIVE = 2;
+}
+
+// Tag is a registered tag and the phone numbers alerts for it are sent to.
+message Tag {
+  // id is the unique identifier of the tag; it matches the event tag_id.
+  string id = 1;
+  // phone_numbers are the phone numbers, in E.164 format, SMS alerts for this
+  // tag are sent to. Every number receives each alert.
+  repeated string phone_numbers = 2;
+  // status is the registration status of the tag. New tags are ACTIVE.
+  TagStatus status = 3;
+  // battery_voltage is the latest battery voltage reported for the tag, in volts.
+  optional float battery_voltage = 4;
+  // battery_alarm is the latest battery status reported for the tag
+  // (see TagInfoEvent.battery_alarm).
+  optional BatteryAlarm battery_alarm = 5;
+  // created_at is the time the tag was registered.
+  google.protobuf.Timestamp created_at = 6;
+  // updated_at is the time the tag was last modified.
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// RegisterTagRequest registers a new tag. Fails with ALREADY_EXISTS if the id is taken.
+message RegisterTagRequest {
+  // id is the unique identifier of the tag to register; it must match the event tag_id.
+  string id = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 64
+  }];
+  // phone_numbers are the phone numbers, in E.164 format, SMS alerts for this tag are sent to.
+  repeated string phone_numbers = 2 [(buf.validate.field).repeated = {
+    min_items: 1
+    max_items: 10
+    unique: true
+    items: {
+      string: {pattern: "^\\+[1-9][0-9]{1,14}$"}
+    }
+  }];
+}
+
+// RegisterTagResponse returns the newly registered tag.
+message RegisterTagResponse {
+  // tag is the registered tag.
+  Tag tag = 1;
+}
+
+// GetTagRequest requests a single tag.
+message GetTagRequest {
+  // id is the unique identifier of the tag to retrieve.
+  string id = 1 [(buf.validate.field).string = {min_len: 1}];
+}
+
+// GetTagResponse returns the requested tag.
+message GetTagResponse {
+  // tag is the requested tag.
+  Tag tag = 1;
+}
+
+// UpdateTagRequest updates a registered tag. Only the fields that are set are changed.
+message UpdateTagRequest {
+  // id is the unique identifier of the tag to update.
+  string id = 1 [(buf.validate.field).string = {min_len: 1}];
+  // phone_numbers are the new phone numbers, in E.164 format. When non-empty,
+  // replaces the existing list.
+  repeated string phone_numbers = 2 [(buf.validate.field).repeated = {
+    max_items: 10
+    unique: true
+    items: {
+      string: {pattern: "^\\+[1-9][0-9]{1,14}$"}
+    }
+  }];
+  // status is the new registration status of the tag.
+  optional TagStatus status = 3 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+}
+
+// UpdateTagResponse returns the updated tag.
+message UpdateTagResponse {
+  // tag is the updated tag.
+  Tag tag = 1;
+}
+
+// ListTagsRequest lists registered tags, ordered by created_at, newest first.
+message ListTagsRequest {
+  // status, when set, restricts the results to tags with this registration status.
+  optional TagStatus status = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // page_token is the next_page_token of a previous response, to fetch the next page.
+  optional string page_token = 2;
+  // page_size is the maximum number of tags to return (at most 200).
+  optional uint32 page_size = 3 [(buf.validate.field).uint32 = {lte: 200}];
+}
+
+// ListTagsResponse returns a page of tags.
+message ListTagsResponse {
+  // tags are the tags in this page.
+  repeated Tag tags = 1;
+  // next_page_token is the token to pass as page_token to fetch the next page;
+  // empty when there are no more results.
+  string next_page_token = 2;
+}
+
+// DeactivateTagRequest deactivates a tag.
+message DeactivateTagRequest {
+  // id is the unique identifier of the tag to deactivate.
+  string id = 1 [(buf.validate.field).string = {min_len: 1}];
+}
+
+// DeactivateTagResponse returns the deactivated tag.
+message DeactivateTagResponse {
+  // tag is the deactivated tag.
+  Tag tag = 1;
+}
+
+// TagRegistryService manages the tags that are allowed to trigger alerts.
+service TagRegistryService {
+  // RegisterTag registers a new tag and the phone numbers its alerts are sent to.
+  rpc RegisterTag(RegisterTagRequest) returns (RegisterTagResponse) {
+    option (google.api.http) = {
+      post: "/v1/tags"
+      body: "*"
+    };
+  }
+  // GetTag returns a single registered tag.
+  rpc GetTag(GetTagRequest) returns (GetTagResponse) {
+    option (google.api.http) = {get: "/v1/tags/{id}"};
+  }
+  // UpdateTag updates the phone numbers and/or status of a registered tag.
+  rpc UpdateTag(UpdateTagRequest) returns (UpdateTagResponse) {
+    option (google.api.http) = {
+      patch: "/v1/tags/{id}"
+      body: "*"
+    };
+  }
+  // ListTags returns a page of registered tags, optionally filtered by status.
+  rpc ListTags(ListTagsRequest) returns (ListTagsResponse) {
+    option (google.api.http) = {get: "/v1/tags"};
+  }
+  // DeactivateTag marks a registered tag as inactive so it no longer triggers alerts.
+  rpc DeactivateTag(DeactivateTagRequest) returns (DeactivateTagResponse) {
+    option (google.api.http) = {
+      post: "/v1/tags/{id}:deactivate"
+      body: "*"
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rule engine
+// ---------------------------------------------------------------------------
+
+// AlertTrigger is the situation of a tag that can raise an alert.
+enum AlertTrigger {
+  // ALERT_TRIGGER_UNSPECIFIED is the default value and must not be used.
+  ALERT_TRIGGER_UNSPECIFIED = 0;
+  // ALERT_TRIGGER_ZONE_ENTRY means the tag entered a zone: the zone is in the
+  // tag's zone list now and was not in the previous one. The first event of a
+  // tag counts as an entry into each of its zones.
+  ALERT_TRIGGER_ZONE_ENTRY = 1;
+  // ALERT_TRIGGER_SIGNAL_LOST means the tag was in at least one zone and its
+  // zone list is now empty. It applies to each zone the tag was in. The
+  // provider reports a lost tag and a tag outside every zone the same way, so
+  // both raise it.
+  ALERT_TRIGGER_SIGNAL_LOST = 2;
+}
+
+// RuleAction is what a rule does when it decides the outcome of an alert.
+enum RuleAction {
+  // RULE_ACTION_UNSPECIFIED is the default value and must not be used.
+  RULE_ACTION_UNSPECIFIED = 0;
+  // RULE_ACTION_SUPPRESS means no SMS is sent.
+  RULE_ACTION_SUPPRESS = 1;
+  // RULE_ACTION_ALERT means an SMS is sent to every phone number of the tag.
+  RULE_ACTION_ALERT = 2;
+}
+
+// TimeWindow is a recurring weekly time range, evaluated in a given timezone.
+// An empty TimeWindow (no days, no times) matches always.
+//
+// The event time is converted to the wall-clock time of timezone and compared
+// against the window, so daylight saving changes need no special handling:
+// - days empty means every day.
+// - start_time and end_time empty mean the whole day.
+// - start_time is inclusive and end_time is exclusive.
+// - when end_time is earlier than start_time the window crosses midnight and
+//   belongs to the day it starts on (days=[MONDAY], 22:00-06:00 covers Monday
+//   22:00 to Tuesday 06:00).
+message TimeWindow {
+  option (buf.validate.message).cel = {
+    id: "time_window.times_together"
+    message: "start_time and end_time must be both set or both empty"
+    expression: "(this.start_time == '') == (this.end_time == '')"
+  };
+  option (buf.validate.message).cel = {
+    id: "time_window.time_format"
+    message: "start_time and end_time must be HH:MM in 24-hour format"
+    expression: "(this.start_time == '' || this.start_time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')) && (this.end_time == '' || this.end_time.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'))"
+  };
+  option (buf.validate.message).cel = {
+    id: "time_window.start_ne_end"
+    message: "start_time and end_time must differ"
+    expression: "this.start_time == '' || this.start_time != this.end_time"
+  };
+  option (buf.validate.message).cel = {
+    id: "time_window.timezone_required"
+    message: "timezone is required unless the window is empty"
+    expression: "this.timezone != '' || (size(this.days) == 0 && this.start_time == '')"
+  };
+
+  // days are the days of the week the window starts on. Empty means every day.
+  repeated google.type.DayOfWeek days = 1 [(buf.validate.field).repeated = {
+    unique: true
+    items: {
+      enum: {
+        defined_only: true
+        not_in: [0]
+      }
+    }
+  }];
+  // start_time is the time of day the window starts, as "HH:MM" in 24-hour format.
+  string start_time = 2;
+  // end_time is the time of day the window ends, as "HH:MM" in 24-hour format.
+  string end_time = 3;
+  // timezone is the IANA timezone name the days and times are expressed in
+  // (e.g. "Europe/Madrid"). A name the server cannot load is rejected with
+  // INVALID_ARGUMENT.
+  string timezone = 4;
+}
+
+// ZoneSelector restricts a rule to a set of zones. A zone matches when its id
+// is in zone_ids. An empty selector matches every zone.
+message ZoneSelector {
+  // zone_ids are the zone identifiers (LocationEvent.location_zone_ids) the
+  // selector matches.
+  repeated string zone_ids = 1 [(buf.validate.field).repeated = {
+    max_items: 100
+    unique: true
+    items: {
+      string: {min_len: 1}
+    }
+  }];
+}
+
+// TagSelector restricts a rule to a set of tags. A tag matches when its id is
+// in tag_ids or its tag group is in tag_group_names. An empty selector matches
+// every tag.
+message TagSelector {
+  // tag_ids are the identifiers of the tags the selector matches.
+  repeated string tag_ids = 1 [(buf.validate.field).repeated = {
+    max_items: 100
+    unique: true
+    items: {
+      string: {
+        min_len: 1
+        max_len: 64
+      }
+    }
+  }];
+  // tag_group_names are the names of the tag groups the selector matches
+  // (see LocationEvent.tag_group_name).
+  repeated string tag_group_names = 2 [(buf.validate.field).repeated = {
+    max_items: 100
+    unique: true
+    items: {
+      string: {min_len: 1}
+    }
+  }];
+}
+
+// Rule decides what happens when a tag raises an alert trigger.
+//
+// # Evaluation
+//
+// For every registered tag, whatever its status, the service stores the zones of
+// the last event it applied and that event's location_ts. Events of tags that are
+// not registered are acknowledged and ignored.
+//
+// For each location event of a registered tag:
+//  1. If its location_ts is not strictly newer than the stored one, the event is
+//     acknowledged and ignored (it never changes the stored state).
+//  2. Otherwise the stored zones are compared with location_zone_ids to derive
+//     the triggers (see AlertTrigger): ZONE_ENTRY for each zone newly present,
+//     and SIGNAL_LOST for each stored zone when the new list is empty and the
+//     stored one was not. A move between zones, or leaving one zone while
+//     staying in another, raises no SIGNAL_LOST. The stored zones are then
+//     replaced.
+//  3. Tags with status INACTIVE stop here: no alert, no alert record.
+//  4. Each (tag, zone, trigger) is resolved independently, using the rules as
+//     they are when the event is processed: the enabled rules with the same
+//     trigger whose zone_selector matches the zone, whose tag_selector matches
+//     the tag and whose time_window matches the event's location_ts.
+//  5. Matching rules may overlap freely; the API never rejects overlapping
+//     rules. The deciding rule is the one with the highest priority; on a tie,
+//     a SUPPRESS rule beats an ALERT rule; on a further tie, the oldest
+//     created_at, then the smallest id. If no rule matches, nothing happens and
+//     no alert record is stored.
+//  6. If the deciding rule is SUPPRESS, one Alert per phone number of the tag is
+//     stored with status SUPPRESSED and suppression_reason RULE.
+//  7. If the deciding rule is ALERT and it last emitted an alert for the same
+//     tag and zone less than cooldown_seconds before this event's location_ts,
+//     the Alerts are stored with status SUPPRESSED and suppression_reason
+//     COOLDOWN. A lower priority rule never takes over from the deciding rule.
+//  8. Otherwise an SMS is sent to every phone number of the tag and one Alert per
+//     phone number is stored, SENT or FAILED, and the rule emission time is
+//     recorded for the cooldown.
+//
+// A change to a rule applies to the events processed after it. Deleting a rule
+// keeps the history: Alert.matched_rule_id may refer to a rule that no longer
+// exists.
+message Rule {
+  // id is the unique identifier of the rule.
+  string id = 1;
+  // name is the human-readable name of the rule. Names are not unique.
+  string name = 2;
+  // enabled is whether the rule is currently evaluated.
+  bool enabled = 3;
+  // zone_selector is the zones the rule applies to. An empty selector means every zone.
+  ZoneSelector zone_selector = 4;
+  // time_window is when the rule applies. An empty window means always.
+  TimeWindow time_window = 5;
+  // action is what the rule does when it decides the outcome.
+  RuleAction action = 6;
+  // created_at is the time the rule was created.
+  google.protobuf.Timestamp created_at = 7;
+  // updated_at is the time the rule was last modified.
+  google.protobuf.Timestamp updated_at = 8;
+  // priority orders matching rules; the higher value wins. Defaults to 0.
+  int32 priority = 9;
+  // tag_selector is the tags the rule applies to. An empty selector means every tag.
+  TagSelector tag_selector = 10;
+  // trigger is the situation the rule applies to.
+  AlertTrigger trigger = 11;
+  // cooldown_seconds is the minimum time between two alerts of this rule for
+  // the same tag and zone, measured on location_ts. 0 means no limit. Only
+  // valid when action is ALERT.
+  uint32 cooldown_seconds = 12;
+}
+
+// CreateRuleRequest creates a new rule. A rule that overlaps others is accepted.
+message CreateRuleRequest {
+  option (buf.validate.message).cel = {
+    id: "create_rule.cooldown_needs_alert"
+    message: "cooldown_seconds is only valid for ALERT rules"
+    expression: "this.cooldown_seconds == 0u || this.action == 2"
+  };
+
+  // name is the human-readable name of the rule.
+  string name = 1 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 128
+  }];
+  // enabled is whether the rule is evaluated as soon as it is created.
+  bool enabled = 2;
+  // zone_selector is the zones the rule applies to; unset or empty means every zone.
+  ZoneSelector zone_selector = 3;
+  // time_window is when the rule applies; unset or empty means always.
+  TimeWindow time_window = 4;
+  // action is what the rule does when it decides the outcome.
+  RuleAction action = 5 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // priority orders matching rules; the higher value wins. Defaults to 0.
+  int32 priority = 6;
+  // tag_selector is the tags the rule applies to; unset or empty means every tag.
+  TagSelector tag_selector = 7;
+  // trigger is the situation the rule applies to.
+  AlertTrigger trigger = 8 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // cooldown_seconds is the minimum time between two alerts of this rule for
+  // the same tag and zone. 0 means no limit. Only valid for ALERT rules.
+  uint32 cooldown_seconds = 9 [(buf.validate.field).uint32 = {lte: 86400}];
+}
+
+// CreateRuleResponse returns the newly created rule.
+message CreateRuleResponse {
+  // rule is the created rule.
+  Rule rule = 1;
+}
+
+// GetRuleRequest requests a single rule.
+message GetRuleRequest {
+  // id is the unique identifier of the rule to retrieve.
+  string id = 1 [(buf.validate.field).string = {min_len: 1}];
+}
+
+// GetRuleResponse returns the requested rule.
+message GetRuleResponse {
+  // rule is the requested rule.
+  Rule rule = 1;
+}
+
+// UpdateRuleRequest updates a rule. Only the fields that are set are changed;
+// a request that sets none changes nothing and returns the rule as it is. The
+// resulting rule is validated as a whole (e.g. cooldown_seconds with a SUPPRESS
+// action is rejected with INVALID_ARGUMENT). Concurrent updates are not
+// detected: the last write wins.
+message UpdateRuleRequest {
+  // id is the unique identifier of the rule to update.
+  string id = 1 [(buf.validate.field).string = {min_len: 1}];
+  // name is the new human-readable name of the rule.
+  optional string name = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 128
+  }];
+  // enabled is whether the rule is evaluated.
+  optional bool enabled = 3;
+  // zone_selector replaces the zone selector. Send an empty selector to apply to every zone.
+  optional ZoneSelector zone_selector = 4;
+  // time_window replaces the time window. Send an empty window to apply always.
+  optional TimeWindow time_window = 5;
+  // action is the new action of the rule.
+  optional RuleAction action = 6 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // priority is the new priority of the rule.
+  optional int32 priority = 7;
+  // tag_selector replaces the tag selector. Send an empty selector to apply to every tag.
+  optional TagSelector tag_selector = 8;
+  // trigger is the new situation the rule applies to.
+  optional AlertTrigger trigger = 9 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // cooldown_seconds is the new cooldown of the rule; 0 removes it.
+  optional uint32 cooldown_seconds = 10 [(buf.validate.field).uint32 = {lte: 86400}];
+}
+
+// UpdateRuleResponse returns the updated rule.
+message UpdateRuleResponse {
+  // rule is the updated rule.
+  Rule rule = 1;
+}
+
+// DeleteRuleRequest deletes a rule.
+message DeleteRuleRequest {
+  // id is the unique identifier of the rule to delete.
+  string id = 1 [(buf.validate.field).string = {min_len: 1}];
+}
+
+// DeleteRuleResponse is empty; a successful response confirms the rule was deleted.
+message DeleteRuleResponse {}
+
+// ListRulesRequest lists rules, ordered by priority (highest first), then
+// created_at (oldest first), then id. Among matching rules with the same
+// priority a SUPPRESS rule decides before an ALERT rule, which this order does
+// not show (see Rule). Pages are not a snapshot: rules created or deleted while
+// paginating may be skipped or repeated.
+message ListRulesRequest {
+  // enabled_only, when true, restricts the results to enabled rules.
+  optional bool enabled_only = 1;
+  // trigger, when set, restricts the results to rules for this trigger.
+  optional AlertTrigger trigger = 4 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // page_token is the next_page_token of a previous response, to fetch the next page.
+  optional string page_token = 2;
+  // page_size is the maximum number of rules to return (at most 200).
+  optional uint32 page_size = 3 [(buf.validate.field).uint32 = {lte: 200}];
+}
+
+// ListRulesResponse returns a page of rules.
+message ListRulesResponse {
+  // rules are the rules in this page.
+  repeated Rule rules = 1;
+  // next_page_token is the token to pass as page_token to fetch the next page;
+  // empty when there are no more results.
+  string next_page_token = 2;
+}
+
+// RuleEngineService manages the rules that decide whether an alert is emitted
+// (see Rule for the evaluation). Errors: INVALID_ARGUMENT for a request that
+// fails validation, NOT_FOUND for an unknown rule id, and RESOURCE_EXHAUSTED when
+// the service limit on the number of rules is reached.
+service RuleEngineService {
+  // CreateRule creates a new rule.
+  rpc CreateRule(CreateRuleRequest) returns (CreateRuleResponse) {
+    option (google.api.http) = {
+      post: "/v1/rules"
+      body: "*"
+    };
+  }
+  // GetRule returns a single rule.
+  rpc GetRule(GetRuleRequest) returns (GetRuleResponse) {
+    option (google.api.http) = {get: "/v1/rules/{id}"};
+  }
+  // UpdateRule updates an existing rule.
+  rpc UpdateRule(UpdateRuleRequest) returns (UpdateRuleResponse) {
+    option (google.api.http) = {
+      patch: "/v1/rules/{id}"
+      body: "*"
+    };
+  }
+  // DeleteRule deletes a rule permanently.
+  rpc DeleteRule(DeleteRuleRequest) returns (DeleteRuleResponse) {
+    option (google.api.http) = {delete: "/v1/rules/{id}"};
+  }
+  // ListRules returns a page of rules, optionally restricted to enabled ones or to one trigger.
+  rpc ListRules(ListRulesRequest) returns (ListRulesResponse) {
+    option (google.api.http) = {get: "/v1/rules"};
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Alert history (read-only)
+// ---------------------------------------------------------------------------
+
+// AlertStatus is the outcome of an alert.
+enum AlertStatus {
+  // ALERT_STATUS_UNSPECIFIED is the default value and must not be used.
+  ALERT_STATUS_UNSPECIFIED = 0;
+  // ALERT_STATUS_SENT means the SMS was sent; see Alert.delivered_to for how far it reached.
+  ALERT_STATUS_SENT = 1;
+  // ALERT_STATUS_SUPPRESSED means no SMS was sent; see Alert.suppression_reason.
+  ALERT_STATUS_SUPPRESSED = 2;
+  // ALERT_STATUS_FAILED means the alert was emitted but sending the SMS failed.
+  ALERT_STATUS_FAILED = 3;
+}
+
+// AlertSuppressionReason is why an alert was suppressed.
+enum AlertSuppressionReason {
+  // ALERT_SUPPRESSION_REASON_UNSPECIFIED is set when the alert was not suppressed.
+  ALERT_SUPPRESSION_REASON_UNSPECIFIED = 0;
+  // ALERT_SUPPRESSION_REASON_RULE means the deciding rule has the SUPPRESS action.
+  ALERT_SUPPRESSION_REASON_RULE = 1;
+  // ALERT_SUPPRESSION_REASON_COOLDOWN means the deciding ALERT rule was still in its cooldown.
+  ALERT_SUPPRESSION_REASON_COOLDOWN = 2;
+}
+
+// AlertDeliveryTarget is how far a sent alert is known to have reached.
+enum AlertDeliveryTarget {
+  // ALERT_DELIVERY_TARGET_UNSPECIFIED is set when the alert was not sent (status is not SENT).
+  ALERT_DELIVERY_TARGET_UNSPECIFIED = 0;
+  // ALERT_DELIVERY_TARGET_NETWORK means the network that reaches the recipient accepted
+  // the alert, without confirming that it reached the device: SMS to the mobile
+  // operator, push to APNs/FCM, email to the recipient's mail server.
+  ALERT_DELIVERY_TARGET_NETWORK = 1;
+  // ALERT_DELIVERY_TARGET_DEVICE means the alert reached the recipient's device: SMS
+  // to the handset, push to the device.
+  ALERT_DELIVERY_TARGET_DEVICE = 2;
+}
+
+// AlertChannel is the channel an alert is sent through.
+enum AlertChannel {
+  // ALERT_CHANNEL_UNSPECIFIED is set when no sending was attempted (status is SUPPRESSED).
+  ALERT_CHANNEL_UNSPECIFIED = 0;
+  // ALERT_CHANNEL_SMS means the alert is sent as an SMS to Alert.phone_number.
+  ALERT_CHANNEL_SMS = 1;
+}
+
+// Alert is a record of an alert that a rule decided for a tag (see Rule). One
+// record exists per (event, zone, trigger) and per phone number of the tag at
+// that moment. Nothing is recorded when no rule matched, or the tag is inactive
+// or not registered.
+message Alert {
+  // id is the unique identifier of the alert.
+  string id = 1;
+  // tag_id is the identifier of the tag that triggered the alert.
+  string tag_id = 2;
+  // zone_id is the identifier of the zone the alert is about: the zone the tag
+  // entered, or the zone it was in when it was lost.
+  string zone_id = 3;
+  // phone_number is the phone number the SMS was (or would have been) sent to.
+  string phone_number = 4;
+  // status is the outcome of the alert.
+  AlertStatus status = 5;
+  // matched_rule_id is the identifier of the rule that determined the outcome.
+  // The rule may have been deleted since.
+  string matched_rule_id = 6;
+  // failure_reason describes why sending the SMS failed; set only when status is FAILED.
+  optional string failure_reason = 7;
+  // triggered_at is the time the alert was evaluated.
+  google.protobuf.Timestamp triggered_at = 8;
+  // zone_name is the name of the zone at the time of the alert, if known.
+  optional string zone_name = 9;
+  // event_time is the location_ts of the location event that triggered the alert.
+  google.protobuf.Timestamp event_time = 11;
+  // event_id is the event_id of the event that triggered the alert; together
+  // with zone_id, trigger and phone_number it makes alert creation idempotent.
+  string event_id = 12;
+  // trigger is the situation that raised the alert.
+  AlertTrigger trigger = 13;
+  // suppression_reason is why the alert was suppressed; set only when status is SUPPRESSED.
+  AlertSuppressionReason suppression_reason = 14;
+  // delivered_to is how far the alert is known to have reached; set only when status is SENT.
+  AlertDeliveryTarget delivered_to = 15;
+  // channel is the channel the alert was sent through; set when status is SENT or FAILED.
+  AlertChannel channel = 16;
+  // delivery_status is the delivery status exactly as the channel provider reported it
+  // (e.g. Infobip "DELIVERED_TO_OPERATOR", "DELIVERED_TO_HANDSET", "EXPIRED_DLR_UNKNOWN"),
+  // kept for auditing. Set when status is SENT or FAILED and the provider reported one;
+  // for FAILED it complements failure_reason.
+  optional string delivery_status = 17;
+}
+
+// ListAlertsRequest lists alerts, ordered by triggered_at, newest first.
+message ListAlertsRequest {
+  // tag_id, when set, restricts the results to alerts for this tag.
+  optional string tag_id = 1;
+  // zone_id, when set, restricts the results to alerts for this zone.
+  optional string zone_id = 2;
+  // status, when set, restricts the results to alerts with this outcome.
+  optional AlertStatus status = 3 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // page_token is the next_page_token of a previous response, to fetch the next page.
+  optional string page_token = 4;
+  // page_size is the maximum number of alerts to return (at most 200).
+  optional uint32 page_size = 5 [(buf.validate.field).uint32 = {lte: 200}];
+  // triggered_after, when set, restricts the results to alerts triggered at or after this time.
+  google.protobuf.Timestamp triggered_after = 6;
+  // triggered_before, when set, restricts the results to alerts triggered before this time.
+  google.protobuf.Timestamp triggered_before = 7;
+  // trigger, when set, restricts the results to alerts raised by this trigger.
+  optional AlertTrigger trigger = 8 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+  // delivered_to, when set, restricts the results to SENT alerts that reached this target.
+  optional AlertDeliveryTarget delivered_to = 9 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+}
+
+// ListAlertsResponse returns a page of alerts.
+message ListAlertsResponse {
+  // alerts are the alerts in this page.
+  repeated Alert alerts = 1;
+  // next_page_token is the token to pass as page_token to fetch the next page;
+  // empty when there are no more results.
+  string next_page_token = 2;
+}
+
+// AlertHistoryService exposes the history of alerts that were evaluated.
+service AlertHistoryService {
+  // ListAlerts returns a page of alerts, optionally filtered by tag, zone, status, trigger,
+  // delivery target and time range.
+  rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse) {
+    option (google.api.http) = {get: "/v1/alerts"};
+  }
+}
