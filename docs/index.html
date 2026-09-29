@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Zonyx Alerts API reference" />
+    <title>Zonyx Alerts API</title>
+    <link rel="icon" type="image/x-icon" href="images/favicon.ico" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.73.0"></script>
+    <script>
+      window.onload = async () => {
+        const versions = await fetch("openapi/versions.txt")
+          .then((res) => res.text())
+          .then((text) => text.split("\n").filter(Boolean));
+
+        Scalar.createApiReference("#app", {
+          sources: versions.map((version) => ({
+            title: version,
+            slug: version,
+            url: `openapi/${version}/index.openapi.json`
+          })),
+          hideClientButton: true,
+          hideTestRequestButton: false,
+          showDeveloperTools: "never",
+          agent: { disabled: true },
+          mcp: { disabled: true }
+        });
+      };
+    </script>
+  </body>
+</html>

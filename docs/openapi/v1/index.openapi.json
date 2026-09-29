@@ -1,0 +1,2211 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Zonyx Alerts API",
+    "version": "1.0.0",
+    "description": "Ingestion of indoor-location and tag-info events, tag registration, alert rule management, and alert history.",
+    "contact": {
+      "name": "Zonyx",
+      "url": "https://github.com/ZonyxNagi/proto-zonyx-alerts",
+      "email": "develop@nagi.es"
+    }
+  },
+  "paths": {
+    "/v1/alerts": {
+      "get": {
+        "tags": [
+          "AlertHistoryService"
+        ],
+        "summary": "ListAlerts",
+        "description": "ListAlerts returns a page of alerts, optionally filtered by tag, zone, status and time range.",
+        "operationId": "AlertHistoryService_ListAlerts",
+        "parameters": [
+          {
+            "name": "tagId",
+            "in": "query",
+            "description": "tag_id, when set, restricts the results to alerts for this tag.",
+            "schema": {
+              "type": "string",
+              "title": "tag_id"
+            }
+          },
+          {
+            "name": "zoneId",
+            "in": "query",
+            "description": "zone_id, when set, restricts the results to alerts for this zone.",
+            "schema": {
+              "type": "string",
+              "title": "zone_id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "status, when set, restricts the results to alerts with this outcome.\nenum.defined_only = true\n",
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.AlertStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "not": {
+                "enum": [
+                  "ALERT_STATUS_UNSPECIFIED"
+                ]
+              },
+              "title": "status"
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "description": "page_token is the next_page_token of a previous response, to fetch the next page.",
+            "schema": {
+              "type": "string",
+              "title": "page_token"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "page_size is the maximum number of alerts to return (at most 200).",
+            "schema": {
+              "type": "integer",
+              "title": "page_size",
+              "maximum": 200
+            }
+          },
+          {
+            "name": "triggeredAfter",
+            "in": "query",
+            "description": "triggered_after, when set, restricts the results to alerts triggered at or after this time.",
+            "schema": {
+              "type": "string",
+              "examples": [
+                "2023-01-15T01:30:15.01Z",
+                "2024-12-25T12:00:00Z"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "triggeredBefore",
+            "in": "query",
+            "description": "triggered_before, when set, restricts the results to alerts triggered before this time.",
+            "schema": {
+              "type": "string",
+              "examples": [
+                "2023-01-15T01:30:15.01Z",
+                "2024-12-25T12:00:00Z"
+              ],
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "trigger",
+            "in": "query",
+            "description": "trigger, when set, restricts the results to alerts raised by this trigger.\nenum.defined_only = true\n",
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.AlertTrigger"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "not": {
+                "enum": [
+                  "ALERT_TRIGGER_UNSPECIFIED"
+                ]
+              },
+              "title": "trigger"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.ListAlertsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ingest/info": {
+      "post": {
+        "tags": [
+          "IngestService"
+        ],
+        "summary": "IngestTagInfoUpdate",
+        "description": "IngestTagInfoUpdate receives a tag info event.",
+        "operationId": "IngestService_IngestTagInfoUpdate",
+        "requestBody": {
+          "description": "event is the tag info event.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/zonyx.alerts.v1.TagInfoEvent"
+                  }
+                ],
+                "title": "event",
+                "description": "event is the tag info event."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.IngestTagInfoUpdateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ingest/location": {
+      "post": {
+        "tags": [
+          "IngestService"
+        ],
+        "summary": "IngestLocationUpdate",
+        "description": "IngestLocationUpdate receives a location event.",
+        "operationId": "IngestService_IngestLocationUpdate",
+        "requestBody": {
+          "description": "event is the location event.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/zonyx.alerts.v1.LocationEvent"
+                  }
+                ],
+                "title": "event",
+                "description": "event is the location event."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.IngestLocationUpdateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rules": {
+      "get": {
+        "tags": [
+          "RuleEngineService"
+        ],
+        "summary": "ListRules",
+        "description": "ListRules returns a page of rules, optionally restricted to enabled ones or to one trigger.",
+        "operationId": "RuleEngineService_ListRules",
+        "parameters": [
+          {
+            "name": "enabledOnly",
+            "in": "query",
+            "description": "enabled_only, when true, restricts the results to enabled rules.",
+            "schema": {
+              "type": "boolean",
+              "title": "enabled_only"
+            }
+          },
+          {
+            "name": "trigger",
+            "in": "query",
+            "description": "trigger, when set, restricts the results to rules for this trigger.\nenum.defined_only = true\n",
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.AlertTrigger"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "not": {
+                "enum": [
+                  "ALERT_TRIGGER_UNSPECIFIED"
+                ]
+              },
+              "title": "trigger"
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "description": "page_token is the next_page_token of a previous response, to fetch the next page.",
+            "schema": {
+              "type": "string",
+              "title": "page_token"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "page_size is the maximum number of rules to return (at most 200).",
+            "schema": {
+              "type": "integer",
+              "title": "page_size",
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.ListRulesResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "RuleEngineService"
+        ],
+        "summary": "CreateRule",
+        "description": "CreateRule creates a new rule.",
+        "operationId": "RuleEngineService_CreateRule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.CreateRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.CreateRuleResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/rules/{id}": {
+      "get": {
+        "tags": [
+          "RuleEngineService"
+        ],
+        "summary": "GetRule",
+        "description": "GetRule returns a single rule.",
+        "operationId": "RuleEngineService_GetRule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "id is the unique identifier of the rule to retrieve.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "id",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.GetRuleResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "RuleEngineService"
+        ],
+        "summary": "DeleteRule",
+        "description": "DeleteRule deletes a rule permanently.",
+        "operationId": "RuleEngineService_DeleteRule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "id is the unique identifier of the rule to delete.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "id",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.DeleteRuleResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "RuleEngineService"
+        ],
+        "summary": "UpdateRule",
+        "description": "UpdateRule updates an existing rule.",
+        "operationId": "RuleEngineService_UpdateRule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "id is the unique identifier of the rule to update.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "id",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "title": "name",
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "description": "name is the new human-readable name of the rule."
+                  },
+                  "enabled": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ],
+                    "title": "enabled",
+                    "description": "enabled is whether the rule is evaluated."
+                  },
+                  "zoneSelector": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/zonyx.alerts.v1.ZoneSelector"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "zone_selector",
+                    "description": "zone_selector replaces the zone selector. Send an empty selector to apply to every zone."
+                  },
+                  "timeWindow": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/zonyx.alerts.v1.TimeWindow"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "time_window",
+                    "description": "time_window replaces the time window. Send an empty window to apply always."
+                  },
+                  "action": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/zonyx.alerts.v1.RuleAction"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "not": {
+                      "enum": [
+                        "RULE_ACTION_UNSPECIFIED"
+                      ]
+                    },
+                    "title": "action",
+                    "description": "action is the new action of the rule.\nenum.defined_only = true\n"
+                  },
+                  "priority": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "title": "priority",
+                    "format": "int32",
+                    "description": "priority is the new priority of the rule."
+                  },
+                  "tagSelector": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/zonyx.alerts.v1.TagSelector"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "tag_selector",
+                    "description": "tag_selector replaces the tag selector. Send an empty selector to apply to every tag."
+                  },
+                  "trigger": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/zonyx.alerts.v1.AlertTrigger"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "not": {
+                      "enum": [
+                        "ALERT_TRIGGER_UNSPECIFIED"
+                      ]
+                    },
+                    "title": "trigger",
+                    "description": "trigger is the new situation the rule applies to.\nenum.defined_only = true\n"
+                  },
+                  "cooldownSeconds": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "title": "cooldown_seconds",
+                    "maximum": 86400,
+                    "description": "cooldown_seconds is the new cooldown of the rule; 0 removes it."
+                  }
+                },
+                "title": "UpdateRuleRequest",
+                "additionalProperties": false,
+                "description": "UpdateRuleRequest updates a rule. Only the fields that are set are changed;\n a request that sets none changes nothing and returns the rule as it is. The\n resulting rule is validated as a whole (e.g. cooldown_seconds with a SUPPRESS\n action is rejected with INVALID_ARGUMENT). Concurrent updates are not\n detected: the last write wins."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.UpdateRuleResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tags": {
+      "get": {
+        "tags": [
+          "TagRegistryService"
+        ],
+        "summary": "ListTags",
+        "description": "ListTags returns a page of registered tags, optionally filtered by status.",
+        "operationId": "TagRegistryService_ListTags",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "status, when set, restricts the results to tags with this registration status.\nenum.defined_only = true\n",
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.TagStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "not": {
+                "enum": [
+                  "TAG_STATUS_UNSPECIFIED"
+                ]
+              },
+              "title": "status"
+            }
+          },
+          {
+            "name": "pageToken",
+            "in": "query",
+            "description": "page_token is the next_page_token of a previous response, to fetch the next page.",
+            "schema": {
+              "type": "string",
+              "title": "page_token"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "page_size is the maximum number of tags to return (at most 200).",
+            "schema": {
+              "type": "integer",
+              "title": "page_size",
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.ListTagsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "TagRegistryService"
+        ],
+        "summary": "RegisterTag",
+        "description": "RegisterTag registers a new tag and the phone numbers its alerts are sent to.",
+        "operationId": "TagRegistryService_RegisterTag",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.RegisterTagRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.RegisterTagResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tags/{id}": {
+      "get": {
+        "tags": [
+          "TagRegistryService"
+        ],
+        "summary": "GetTag",
+        "description": "GetTag returns a single registered tag.",
+        "operationId": "TagRegistryService_GetTag",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "id is the unique identifier of the tag to retrieve.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "id",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.GetTagResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "TagRegistryService"
+        ],
+        "summary": "UpdateTag",
+        "description": "UpdateTag updates the phone numbers and/or status of a registered tag.",
+        "operationId": "TagRegistryService_UpdateTag",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "id is the unique identifier of the tag to update.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "id",
+              "minLength": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "phoneNumbers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^\\+[1-9][0-9]{1,14}$"
+                    },
+                    "title": "phone_numbers",
+                    "maxItems": 10,
+                    "uniqueItems": true,
+                    "description": "phone_numbers are the new phone numbers, in E.164 format. When non-empty,\n replaces the existing list."
+                  },
+                  "status": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/zonyx.alerts.v1.TagStatus"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "not": {
+                      "enum": [
+                        "TAG_STATUS_UNSPECIFIED"
+                      ]
+                    },
+                    "title": "status",
+                    "description": "status is the new registration status of the tag.\nenum.defined_only = true\n"
+                  }
+                },
+                "title": "UpdateTagRequest",
+                "additionalProperties": false,
+                "description": "UpdateTagRequest updates a registered tag. Only the fields that are set are changed."
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.UpdateTagResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tags/{id}:deactivate": {
+      "post": {
+        "tags": [
+          "TagRegistryService"
+        ],
+        "summary": "DeactivateTag",
+        "description": "DeactivateTag marks a registered tag as inactive so it no longer triggers alerts.",
+        "operationId": "TagRegistryService_DeactivateTag",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "id is the unique identifier of the tag to deactivate.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "id",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/zonyx.alerts.v1.DeactivateTagResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "google.protobuf.Timestamp": {
+        "type": "string",
+        "examples": [
+          "2023-01-15T01:30:15.01Z",
+          "2024-12-25T12:00:00Z"
+        ],
+        "format": "date-time",
+        "description": "A point in time in RFC 3339 format, with up to nanosecond precision. Output uses UTC (`Z`); input may use an offset from UTC."
+      },
+      "google.type.DayOfWeek": {
+        "type": "string",
+        "title": "DayOfWeek",
+        "enum": [
+          "DAY_OF_WEEK_UNSPECIFIED",
+          "MONDAY",
+          "TUESDAY",
+          "WEDNESDAY",
+          "THURSDAY",
+          "FRIDAY",
+          "SATURDAY",
+          "SUNDAY"
+        ],
+        "description": "Represents a day of the week."
+      },
+      "zonyx.alerts.v1.Alert": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "id",
+            "description": "id is the unique identifier of the alert."
+          },
+          "tagId": {
+            "type": "string",
+            "title": "tag_id",
+            "description": "tag_id is the identifier of the tag that triggered the alert."
+          },
+          "zoneId": {
+            "type": "string",
+            "title": "zone_id",
+            "description": "zone_id is the identifier of the zone the alert is about: the zone the tag\n entered, or the zone it was in when it was lost."
+          },
+          "phoneNumber": {
+            "type": "string",
+            "title": "phone_number",
+            "description": "phone_number is the phone number the SMS was (or would have been) sent to."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.AlertStatus"
+              }
+            ],
+            "title": "status",
+            "description": "status is the outcome of the alert."
+          },
+          "matchedRuleId": {
+            "type": "string",
+            "title": "matched_rule_id",
+            "description": "matched_rule_id is the identifier of the rule that determined the outcome.\n The rule may have been deleted since."
+          },
+          "failureReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "failure_reason",
+            "description": "failure_reason describes why sending the SMS failed; set only when status is FAILED."
+          },
+          "triggeredAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/google.protobuf.Timestamp"
+              }
+            ],
+            "title": "triggered_at",
+            "description": "triggered_at is the time the alert was evaluated."
+          },
+          "zoneName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "zone_name",
+            "description": "zone_name is the name of the zone at the time of the alert, if known."
+          },
+          "eventTime": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/google.protobuf.Timestamp"
+              }
+            ],
+            "title": "event_time",
+            "description": "event_time is the location_ts of the location event that triggered the alert."
+          },
+          "eventId": {
+            "type": "string",
+            "title": "event_id",
+            "description": "event_id is the event_id of the event that triggered the alert; together\n with zone_id, trigger and phone_number it makes alert creation idempotent."
+          },
+          "trigger": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.AlertTrigger"
+              }
+            ],
+            "title": "trigger",
+            "description": "trigger is the situation that raised the alert."
+          },
+          "suppressionReason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.AlertSuppressionReason"
+              }
+            ],
+            "title": "suppression_reason",
+            "description": "suppression_reason is why the alert was suppressed; set only when status is SUPPRESSED."
+          }
+        },
+        "title": "Alert",
+        "additionalProperties": false,
+        "description": "Alert is a record of an alert that a rule decided for a tag (see Rule). One\n record exists per (event, zone, trigger) and per phone number of the tag at\n that moment. Nothing is recorded when no rule matched, or the tag is inactive\n or not registered."
+      },
+      "zonyx.alerts.v1.AlertStatus": {
+        "type": "string",
+        "title": "AlertStatus",
+        "enum": [
+          "ALERT_STATUS_UNSPECIFIED",
+          "ALERT_STATUS_SENT",
+          "ALERT_STATUS_SUPPRESSED",
+          "ALERT_STATUS_FAILED"
+        ],
+        "description": "AlertStatus is the outcome of an alert."
+      },
+      "zonyx.alerts.v1.AlertSuppressionReason": {
+        "type": "string",
+        "title": "AlertSuppressionReason",
+        "enum": [
+          "ALERT_SUPPRESSION_REASON_UNSPECIFIED",
+          "ALERT_SUPPRESSION_REASON_RULE",
+          "ALERT_SUPPRESSION_REASON_COOLDOWN"
+        ],
+        "description": "AlertSuppressionReason is why an alert was suppressed."
+      },
+      "zonyx.alerts.v1.AlertTrigger": {
+        "type": "string",
+        "title": "AlertTrigger",
+        "enum": [
+          "ALERT_TRIGGER_UNSPECIFIED",
+          "ALERT_TRIGGER_ZONE_ENTRY",
+          "ALERT_TRIGGER_SIGNAL_LOST"
+        ],
+        "description": "AlertTrigger is the situation of a tag that can raise an alert."
+      },
+      "zonyx.alerts.v1.BatteryAlarm": {
+        "type": "string",
+        "title": "BatteryAlarm",
+        "enum": [
+          "BATTERY_ALARM_UNSPECIFIED",
+          "BATTERY_ALARM_OK",
+          "BATTERY_ALARM_LOW"
+        ],
+        "description": "BatteryAlarm is the battery status of a tag, as defined by the location\n provider (Quuppa: https://www.quuppa.com/documentation/QPE/topics/QPE_tags_definitions.html)."
+      },
+      "zonyx.alerts.v1.CreateRuleRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "name",
+            "maxLength": 128,
+            "minLength": 1,
+            "description": "name is the human-readable name of the rule."
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "enabled",
+            "description": "enabled is whether the rule is evaluated as soon as it is created."
+          },
+          "zoneSelector": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.ZoneSelector"
+              }
+            ],
+            "title": "zone_selector",
+            "description": "zone_selector is the zones the rule applies to; unset or empty means every zone."
+          },
+          "timeWindow": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.TimeWindow"
+              }
+            ],
+            "title": "time_window",
+            "description": "time_window is when the rule applies; unset or empty means always."
+          },
+          "action": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.RuleAction"
+              }
+            ],
+            "not": {
+              "enum": [
+                "RULE_ACTION_UNSPECIFIED"
+              ]
+            },
+            "title": "action",
+            "description": "action is what the rule does when it decides the outcome.\nenum.defined_only = true\n"
+          },
+          "priority": {
+            "type": "integer",
+            "title": "priority",
+            "format": "int32",
+            "description": "priority orders matching rules; the higher value wins. Defaults to 0."
+          },
+          "tagSelector": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.TagSelector"
+              }
+            ],
+            "title": "tag_selector",
+            "description": "tag_selector is the tags the rule applies to; unset or empty means every tag."
+          },
+          "trigger": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.AlertTrigger"
+              }
+            ],
+            "not": {
+              "enum": [
+                "ALERT_TRIGGER_UNSPECIFIED"
+              ]
+            },
+            "title": "trigger",
+            "description": "trigger is the situation the rule applies to.\nenum.defined_only = true\n"
+          },
+          "cooldownSeconds": {
+            "type": "integer",
+            "title": "cooldown_seconds",
+            "maximum": 86400,
+            "description": "cooldown_seconds is the minimum time between two alerts of this rule for\n the same tag and zone. 0 means no limit. Only valid for ALERT rules."
+          }
+        },
+        "title": "CreateRuleRequest",
+        "additionalProperties": false,
+        "description": "CreateRuleRequest creates a new rule. A rule that overlaps others is accepted.\ncreate_rule.cooldown_needs_alert // cooldown_seconds is only valid for ALERT rules\n"
+      },
+      "zonyx.alerts.v1.CreateRuleResponse": {
+        "type": "object",
+        "properties": {
+          "rule": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.Rule"
+              }
+            ],
+            "title": "rule",
+            "description": "rule is the created rule."
+          }
+        },
+        "title": "CreateRuleResponse",
+        "additionalProperties": false,
+        "description": "CreateRuleResponse returns the newly created rule."
+      },
+      "zonyx.alerts.v1.DeactivateTagRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "id",
+            "minLength": 1,
+            "description": "id is the unique identifier of the tag to deactivate."
+          }
+        },
+        "title": "DeactivateTagRequest",
+        "additionalProperties": false,
+        "description": "DeactivateTagRequest deactivates a tag."
+      },
+      "zonyx.alerts.v1.DeactivateTagResponse": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.Tag"
+              }
+            ],
+            "title": "tag",
+            "description": "tag is the deactivated tag."
+          }
+        },
+        "title": "DeactivateTagResponse",
+        "additionalProperties": false,
+        "description": "DeactivateTagResponse returns the deactivated tag."
+      },
+      "zonyx.alerts.v1.DeleteRuleRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "id",
+            "minLength": 1,
+            "description": "id is the unique identifier of the rule to delete."
+          }
+        },
+        "title": "DeleteRuleRequest",
+        "additionalProperties": false,
+        "description": "DeleteRuleRequest deletes a rule."
+      },
+      "zonyx.alerts.v1.DeleteRuleResponse": {
+        "type": "object",
+        "title": "DeleteRuleResponse",
+        "additionalProperties": false,
+        "description": "DeleteRuleResponse is empty; a successful response confirms the rule was deleted."
+      },
+      "zonyx.alerts.v1.GetRuleRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "id",
+            "minLength": 1,
+            "description": "id is the unique identifier of the rule to retrieve."
+          }
+        },
+        "title": "GetRuleRequest",
+        "additionalProperties": false,
+        "description": "GetRuleRequest requests a single rule."
+      },
+      "zonyx.alerts.v1.GetRuleResponse": {
+        "type": "object",
+        "properties": {
+          "rule": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.Rule"
+              }
+            ],
+            "title": "rule",
+            "description": "rule is the requested rule."
+          }
+        },
+        "title": "GetRuleResponse",
+        "additionalProperties": false,
+        "description": "GetRuleResponse returns the requested rule."
+      },
+      "zonyx.alerts.v1.GetTagRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "id",
+            "minLength": 1,
+            "description": "id is the unique identifier of the tag to retrieve."
+          }
+        },
+        "title": "GetTagRequest",
+        "additionalProperties": false,
+        "description": "GetTagRequest requests a single tag."
+      },
+      "zonyx.alerts.v1.GetTagResponse": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.Tag"
+              }
+            ],
+            "title": "tag",
+            "description": "tag is the requested tag."
+          }
+        },
+        "title": "GetTagResponse",
+        "additionalProperties": false,
+        "description": "GetTagResponse returns the requested tag."
+      },
+      "zonyx.alerts.v1.IngestLocationUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.LocationEvent"
+              }
+            ],
+            "title": "event",
+            "description": "event is the location event."
+          }
+        },
+        "title": "IngestLocationUpdateRequest",
+        "required": [
+          "event"
+        ],
+        "additionalProperties": false,
+        "description": "IngestLocationUpdateRequest delivers a LocationEvent. In HTTP, the request\n body is the event itself."
+      },
+      "zonyx.alerts.v1.IngestLocationUpdateResponse": {
+        "type": "object",
+        "title": "IngestLocationUpdateResponse",
+        "additionalProperties": false,
+        "description": "IngestLocationUpdateResponse is empty; a successful (2xx) response confirms\n the event was accepted."
+      },
+      "zonyx.alerts.v1.IngestTagInfoUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "event": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.TagInfoEvent"
+              }
+            ],
+            "title": "event",
+            "description": "event is the tag info event."
+          }
+        },
+        "title": "IngestTagInfoUpdateRequest",
+        "required": [
+          "event"
+        ],
+        "additionalProperties": false,
+        "description": "IngestTagInfoUpdateRequest delivers a TagInfoEvent. In HTTP, the request\n body is the event itself."
+      },
+      "zonyx.alerts.v1.IngestTagInfoUpdateResponse": {
+        "type": "object",
+        "title": "IngestTagInfoUpdateResponse",
+        "additionalProperties": false,
+        "description": "IngestTagInfoUpdateResponse is empty; a successful (2xx) response confirms\n the event was accepted."
+      },
+      "zonyx.alerts.v1.ListAlertsRequest": {
+        "type": "object",
+        "properties": {
+          "tagId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "tag_id",
+            "description": "tag_id, when set, restricts the results to alerts for this tag."
+          },
+          "zoneId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "zone_id",
+            "description": "zone_id, when set, restricts the results to alerts for this zone."
+          },
+          "status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.AlertStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "not": {
+              "enum": [
+                "ALERT_STATUS_UNSPECIFIED"
+              ]
+            },
+            "title": "status",
+            "description": "status, when set, restricts the results to alerts with this outcome.\nenum.defined_only = true\n"
+          },
+          "pageToken": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "page_token",
+            "description": "page_token is the next_page_token of a previous response, to fetch the next page."
+          },
+          "pageSize": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "title": "page_size",
+            "maximum": 200,
+            "description": "page_size is the maximum number of alerts to return (at most 200)."
+          },
+          "triggeredAfter": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/google.protobuf.Timestamp"
+              }
+            ],
+            "title": "triggered_after",
+            "description": "triggered_after, when set, restricts the results to alerts triggered at or after this time."
+          },
+          "triggeredBefore": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/google.protobuf.Timestamp"
+              }
+            ],
+            "title": "triggered_before",
+            "description": "triggered_before, when set, restricts the results to alerts triggered before this time."
+          },
+          "trigger": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.AlertTrigger"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "not": {
+              "enum": [
+                "ALERT_TRIGGER_UNSPECIFIED"
+              ]
+            },
+            "title": "trigger",
+            "description": "trigger, when set, restricts the results to alerts raised by this trigger.\nenum.defined_only = true\n"
+          }
+        },
+        "title": "ListAlertsRequest",
+        "additionalProperties": false,
+        "description": "ListAlertsRequest lists alerts, ordered by triggered_at, newest first."
+      },
+      "zonyx.alerts.v1.ListAlertsResponse": {
+        "type": "object",
+        "properties": {
+          "alerts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/zonyx.alerts.v1.Alert"
+            },
+            "title": "alerts",
+            "description": "alerts are the alerts in this page."
+          },
+          "nextPageToken": {
+            "type": "string",
+            "title": "next_page_token",
+            "description": "next_page_token is the token to pass as page_token to fetch the next page;\n empty when there are no more results."
+          }
+        },
+        "title": "ListAlertsResponse",
+        "additionalProperties": false,
+        "description": "ListAlertsResponse returns a page of alerts."
+      },
+      "zonyx.alerts.v1.ListRulesRequest": {
+        "type": "object",
+        "properties": {
+          "enabledOnly": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "title": "enabled_only",
+            "description": "enabled_only, when true, restricts the results to enabled rules."
+          },
+          "trigger": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.AlertTrigger"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "not": {
+              "enum": [
+                "ALERT_TRIGGER_UNSPECIFIED"
+              ]
+            },
+            "title": "trigger",
+            "description": "trigger, when set, restricts the results to rules for this trigger.\nenum.defined_only = true\n"
+          },
+          "pageToken": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "page_token",
+            "description": "page_token is the next_page_token of a previous response, to fetch the next page."
+          },
+          "pageSize": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "title": "page_size",
+            "maximum": 200,
+            "description": "page_size is the maximum number of rules to return (at most 200)."
+          }
+        },
+        "title": "ListRulesRequest",
+        "additionalProperties": false,
+        "description": "ListRulesRequest lists rules, ordered by priority (highest first), then\n created_at (oldest first), then id. Among matching rules with the same\n priority a SUPPRESS rule decides before an ALERT rule, which this order does\n not show (see Rule). Pages are not a snapshot: rules created or deleted while\n paginating may be skipped or repeated."
+      },
+      "zonyx.alerts.v1.ListRulesResponse": {
+        "type": "object",
+        "properties": {
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/zonyx.alerts.v1.Rule"
+            },
+            "title": "rules",
+            "description": "rules are the rules in this page."
+          },
+          "nextPageToken": {
+            "type": "string",
+            "title": "next_page_token",
+            "description": "next_page_token is the token to pass as page_token to fetch the next page;\n empty when there are no more results."
+          }
+        },
+        "title": "ListRulesResponse",
+        "additionalProperties": false,
+        "description": "ListRulesResponse returns a page of rules."
+      },
+      "zonyx.alerts.v1.ListTagsRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.TagStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "not": {
+              "enum": [
+                "TAG_STATUS_UNSPECIFIED"
+              ]
+            },
+            "title": "status",
+            "description": "status, when set, restricts the results to tags with this registration status.\nenum.defined_only = true\n"
+          },
+          "pageToken": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "page_token",
+            "description": "page_token is the next_page_token of a previous response, to fetch the next page."
+          },
+          "pageSize": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "title": "page_size",
+            "maximum": 200,
+            "description": "page_size is the maximum number of tags to return (at most 200)."
+          }
+        },
+        "title": "ListTagsRequest",
+        "additionalProperties": false,
+        "description": "ListTagsRequest lists registered tags, ordered by created_at, newest first."
+      },
+      "zonyx.alerts.v1.ListTagsResponse": {
+        "type": "object",
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/zonyx.alerts.v1.Tag"
+            },
+            "title": "tags",
+            "description": "tags are the tags in this page."
+          },
+          "nextPageToken": {
+            "type": "string",
+            "title": "next_page_token",
+            "description": "next_page_token is the token to pass as page_token to fetch the next page;\n empty when there are no more results."
+          }
+        },
+        "title": "ListTagsResponse",
+        "additionalProperties": false,
+        "description": "ListTagsResponse returns a page of tags."
+      },
+      "zonyx.alerts.v1.LocationEvent": {
+        "type": "object",
+        "properties": {
+          "tagId": {
+            "type": "string",
+            "title": "tag_id",
+            "maxLength": 64,
+            "minLength": 1,
+            "description": "tag_id is the unique identifier of the tag, as reported by the location provider."
+          },
+          "tagName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "tag_name",
+            "description": "tag_name is the human-readable name assigned to the tag by the provider, if any."
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "color",
+            "description": "color is the display color assigned to the tag by the provider, as a hex string (e.g. \"#FF0000\")."
+          },
+          "tagGroupName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "tag_group_name",
+            "description": "tag_group_name is the name of the provider tag group the tag belongs to, if any."
+          },
+          "locationType": {
+            "type": "string",
+            "title": "location_type",
+            "minLength": 1,
+            "description": "location_type is the kind of location estimate the provider produced (observed: \"position\")."
+          },
+          "locationMovementStatus": {
+            "type": "string",
+            "title": "location_movement_status",
+            "minLength": 1,
+            "description": "location_movement_status is whether the provider considers the tag to be moving or\n stationary."
+          },
+          "locationRadius": {
+            "type": "number",
+            "title": "location_radius",
+            "format": "float",
+            "description": "location_radius is the estimated accuracy radius of the position, in meters."
+          },
+          "location": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            },
+            "title": "location",
+            "maxItems": 3,
+            "minItems": 0,
+            "description": "location is the estimated [x, y, z] position of the tag, in meters. Empty\n when the provider could not estimate a position."
+          },
+          "locationTs": {
+            "exclusiveMinimum": 0,
+            "type": "string",
+            "title": "location_ts",
+            "format": "int64",
+            "description": "location_ts is the event time, as a Unix timestamp in milliseconds: the time\n the location was estimated, or, when there is no position, the time the\n provider produced the event. It orders the events of a tag and is the time\n rule windows are evaluated against, so it must be set on every event."
+          },
+          "locationZoneIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "title": "location_zone_ids",
+            "uniqueItems": true,
+            "description": "location_zone_ids are the unique identifiers of the zones the tag is\n currently inside. Zone identifiers are unique across the provider. Empty\n when the provider reports the tag in no zone, which is also how it reports\n that it lost the tag: the schema does not distinguish the two. The service\n reads the change of this list between consecutive events of a tag (see Rule)."
+          },
+          "locationZoneNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "title": "location_zone_names",
+            "description": "location_zone_names are the human-readable names of the zones in\n location_zone_ids, in the same order."
+          },
+          "eventId": {
+            "type": "string",
+            "title": "event_id",
+            "maxLength": 128,
+            "minLength": 1,
+            "description": "event_id uniquely identifies this event. It is assigned by the publisher\n (e.g. a UUID, or a hash of tag_id and location_ts) and stays the same across\n redeliveries, so the event is processed only once."
+          }
+        },
+        "title": "LocationEvent",
+        "additionalProperties": false,
+        "description": "LocationEvent represents a single tag location event.\n\n Unless stated otherwise, every *_ts field in the event messages is a Unix\n timestamp in milliseconds.\nlocation_event.location_xyz // location must be empty or have exactly 3 values [x, y, z]\nlocation_event.zone_names_match_ids // location_zone_names must have the same length as location_zone_ids\n"
+      },
+      "zonyx.alerts.v1.RegisterTagRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "id",
+            "maxLength": 64,
+            "minLength": 1,
+            "description": "id is the unique identifier of the tag to register; it must match the event tag_id."
+          },
+          "phoneNumbers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^\\+[1-9][0-9]{1,14}$"
+            },
+            "title": "phone_numbers",
+            "maxItems": 10,
+            "minItems": 1,
+            "uniqueItems": true,
+            "description": "phone_numbers are the phone numbers, in E.164 format, SMS alerts for this tag are sent to."
+          }
+        },
+        "title": "RegisterTagRequest",
+        "additionalProperties": false,
+        "description": "RegisterTagRequest registers a new tag. Fails with ALREADY_EXISTS if the id is taken."
+      },
+      "zonyx.alerts.v1.RegisterTagResponse": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.Tag"
+              }
+            ],
+            "title": "tag",
+            "description": "tag is the registered tag."
+          }
+        },
+        "title": "RegisterTagResponse",
+        "additionalProperties": false,
+        "description": "RegisterTagResponse returns the newly registered tag."
+      },
+      "zonyx.alerts.v1.Rule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "id",
+            "description": "id is the unique identifier of the rule."
+          },
+          "name": {
+            "type": "string",
+            "title": "name",
+            "description": "name is the human-readable name of the rule. Names are not unique."
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "enabled",
+            "description": "enabled is whether the rule is currently evaluated."
+          },
+          "zoneSelector": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.ZoneSelector"
+              }
+            ],
+            "title": "zone_selector",
+            "description": "zone_selector is the zones the rule applies to. An empty selector means every zone."
+          },
+          "timeWindow": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.TimeWindow"
+              }
+            ],
+            "title": "time_window",
+            "description": "time_window is when the rule applies. An empty window means always."
+          },
+          "action": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.RuleAction"
+              }
+            ],
+            "title": "action",
+            "description": "action is what the rule does when it decides the outcome."
+          },
+          "createdAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/google.protobuf.Timestamp"
+              }
+            ],
+            "title": "created_at",
+            "description": "created_at is the time the rule was created."
+          },
+          "updatedAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/google.protobuf.Timestamp"
+              }
+            ],
+            "title": "updated_at",
+            "description": "updated_at is the time the rule was last modified."
+          },
+          "priority": {
+            "type": "integer",
+            "title": "priority",
+            "format": "int32",
+            "description": "priority orders matching rules; the higher value wins. Defaults to 0."
+          },
+          "tagSelector": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.TagSelector"
+              }
+            ],
+            "title": "tag_selector",
+            "description": "tag_selector is the tags the rule applies to. An empty selector means every tag."
+          },
+          "trigger": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.AlertTrigger"
+              }
+            ],
+            "title": "trigger",
+            "description": "trigger is the situation the rule applies to."
+          },
+          "cooldownSeconds": {
+            "type": "integer",
+            "title": "cooldown_seconds",
+            "description": "cooldown_seconds is the minimum time between two alerts of this rule for\n the same tag and zone, measured on location_ts. 0 means no limit. Only\n valid when action is ALERT."
+          }
+        },
+        "title": "Rule",
+        "additionalProperties": false,
+        "description": "Rule decides what happens when a tag raises an alert trigger.\n\n # Evaluation\n\n For every registered tag, whatever its status, the service stores the zones of\n the last event it applied and that event's location_ts. Events of tags that are\n not registered are acknowledged and ignored.\n\n For each location event of a registered tag:\n  1. If its location_ts is not strictly newer than the stored one, the event is\n     acknowledged and ignored (it never changes the stored state).\n  2. Otherwise the stored zones are compared with location_zone_ids to derive\n     the triggers (see AlertTrigger): ZONE_ENTRY for each zone newly present,\n     and SIGNAL_LOST for each stored zone when the new list is empty and the\n     stored one was not. A move between zones, or leaving one zone while\n     staying in another, raises no SIGNAL_LOST. The stored zones are then\n     replaced.\n  3. Tags with status INACTIVE stop here: no alert, no alert record.\n  4. Each (tag, zone, trigger) is resolved independently, using the rules as\n     they are when the event is processed: the enabled rules with the same\n     trigger whose zone_selector matches the zone, whose tag_selector matches\n     the tag and whose time_window matches the event's location_ts.\n  5. Matching rules may overlap freely; the API never rejects overlapping\n     rules. The deciding rule is the one with the highest priority; on a tie,\n     a SUPPRESS rule beats an ALERT rule; on a further tie, the oldest\n     created_at, then the smallest id. If no rule matches, nothing happens and\n     no alert record is stored.\n  6. If the deciding rule is SUPPRESS, one Alert per phone number of the tag is\n     stored with status SUPPRESSED and suppression_reason RULE.\n  7. If the deciding rule is ALERT and it last emitted an alert for the same\n     tag and zone less than cooldown_seconds before this event's location_ts,\n     the Alerts are stored with status SUPPRESSED and suppression_reason\n     COOLDOWN. A lower priority rule never takes over from the deciding rule.\n  8. Otherwise an SMS is sent to every phone number of the tag and one Alert per\n     phone number is stored, SENT or FAILED, and the rule emission time is\n     recorded for the cooldown.\n\n A change to a rule applies to the events processed after it. Deleting a rule\n keeps the history: Alert.matched_rule_id may refer to a rule that no longer\n exists."
+      },
+      "zonyx.alerts.v1.RuleAction": {
+        "type": "string",
+        "title": "RuleAction",
+        "enum": [
+          "RULE_ACTION_UNSPECIFIED",
+          "RULE_ACTION_SUPPRESS",
+          "RULE_ACTION_ALERT"
+        ],
+        "description": "RuleAction is what a rule does when it decides the outcome of an alert."
+      },
+      "zonyx.alerts.v1.Tag": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "id",
+            "description": "id is the unique identifier of the tag; it matches the event tag_id."
+          },
+          "phoneNumbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "title": "phone_numbers",
+            "description": "phone_numbers are the phone numbers, in E.164 format, SMS alerts for this\n tag are sent to. Every number receives each alert."
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.TagStatus"
+              }
+            ],
+            "title": "status",
+            "description": "status is the registration status of the tag. New tags are ACTIVE."
+          },
+          "batteryVoltage": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "battery_voltage",
+            "format": "float",
+            "description": "battery_voltage is the latest battery voltage reported for the tag, in volts."
+          },
+          "batteryAlarm": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.BatteryAlarm"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "battery_alarm",
+            "description": "battery_alarm is the latest battery status reported for the tag\n (see TagInfoEvent.battery_alarm)."
+          },
+          "createdAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/google.protobuf.Timestamp"
+              }
+            ],
+            "title": "created_at",
+            "description": "created_at is the time the tag was registered."
+          },
+          "updatedAt": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/google.protobuf.Timestamp"
+              }
+            ],
+            "title": "updated_at",
+            "description": "updated_at is the time the tag was last modified."
+          }
+        },
+        "title": "Tag",
+        "additionalProperties": false,
+        "description": "Tag is a registered tag and the phone numbers alerts for it are sent to."
+      },
+      "zonyx.alerts.v1.TagInfoEvent": {
+        "type": "object",
+        "properties": {
+          "tagId": {
+            "type": "string",
+            "title": "tag_id",
+            "maxLength": 64,
+            "minLength": 1,
+            "description": "tag_id is the unique identifier of the tag, as reported by the location provider."
+          },
+          "lastPacketTs": {
+            "exclusiveMinimum": 0,
+            "type": "string",
+            "title": "last_packet_ts",
+            "format": "int64",
+            "description": "last_packet_ts is the time the provider last received a radio packet from the tag."
+          },
+          "tagName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "tag_name",
+            "description": "tag_name is the human-readable name assigned to the tag by the provider, if any."
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "color",
+            "description": "color is the display color assigned to the tag by the provider, as a hex string (e.g. \"#FF0000\")."
+          },
+          "tagGroupName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "tag_group_name",
+            "description": "tag_group_name is the name of the provider tag group the tag belongs to, if any."
+          },
+          "batteryVoltage": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "title": "battery_voltage",
+            "format": "float",
+            "description": "battery_voltage is the tag battery voltage, in volts (e.g. 2.90)."
+          },
+          "batteryVoltageTs": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "battery_voltage_ts",
+            "format": "int64",
+            "description": "battery_voltage_ts is the time battery_voltage was last updated."
+          },
+          "batteryAlarm": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.BatteryAlarm"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "not": {
+              "enum": [
+                "BATTERY_ALARM_UNSPECIFIED"
+              ]
+            },
+            "title": "battery_alarm",
+            "description": "battery_alarm is the battery status reported by the tag. Omitted when the\n provider has not reported it yet. The publisher maps the provider values\n \"ok\" and \"low\" to this enum and omits any other value.\nenum.defined_only = true\n"
+          },
+          "batteryAlarmTs": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "battery_alarm_ts",
+            "format": "int64",
+            "description": "battery_alarm_ts is the time battery_alarm was last updated."
+          },
+          "lastSeenTs": {
+            "type": "string",
+            "title": "last_seen_ts",
+            "format": "int64",
+            "description": "last_seen_ts is the time the tag was last seen by the provider."
+          },
+          "eventId": {
+            "type": "string",
+            "title": "event_id",
+            "maxLength": 128,
+            "minLength": 1,
+            "description": "event_id uniquely identifies this event. It is assigned by the publisher\n (e.g. a UUID, or a hash of tag_id and last_packet_ts) and stays the same across\n redeliveries, so the event is processed only once."
+          }
+        },
+        "title": "TagInfoEvent",
+        "additionalProperties": false,
+        "description": "TagInfoEvent represents a single tag info event (battery, tag health).\n\n Each state-like field has a companion *_ts field with the time that value\n was last updated."
+      },
+      "zonyx.alerts.v1.TagSelector": {
+        "type": "object",
+        "properties": {
+          "tagIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "minLength": 1
+            },
+            "title": "tag_ids",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "description": "tag_ids are the identifiers of the tags the selector matches."
+          },
+          "tagGroupNames": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "title": "tag_group_names",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "description": "tag_group_names are the names of the tag groups the selector matches\n (see LocationEvent.tag_group_name)."
+          }
+        },
+        "title": "TagSelector",
+        "additionalProperties": false,
+        "description": "TagSelector restricts a rule to a set of tags. A tag matches when its id is\n in tag_ids or its tag group is in tag_group_names. An empty selector matches\n every tag."
+      },
+      "zonyx.alerts.v1.TagStatus": {
+        "type": "string",
+        "title": "TagStatus",
+        "enum": [
+          "TAG_STATUS_UNSPECIFIED",
+          "TAG_STATUS_ACTIVE",
+          "TAG_STATUS_INACTIVE"
+        ],
+        "description": "TagStatus is the registration status of a tag."
+      },
+      "zonyx.alerts.v1.TimeWindow": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/google.type.DayOfWeek"
+            },
+            "title": "days",
+            "uniqueItems": true,
+            "description": "days are the days of the week the window starts on. Empty means every day."
+          },
+          "startTime": {
+            "type": "string",
+            "title": "start_time",
+            "description": "start_time is the time of day the window starts, as \"HH:MM\" in 24-hour format."
+          },
+          "endTime": {
+            "type": "string",
+            "title": "end_time",
+            "description": "end_time is the time of day the window ends, as \"HH:MM\" in 24-hour format."
+          },
+          "timezone": {
+            "type": "string",
+            "title": "timezone",
+            "description": "timezone is the IANA timezone name the days and times are expressed in\n (e.g. \"Europe/Madrid\"). A name the server cannot load is rejected with\n INVALID_ARGUMENT."
+          }
+        },
+        "title": "TimeWindow",
+        "additionalProperties": false,
+        "description": "TimeWindow is a recurring weekly time range, evaluated in a given timezone.\n An empty TimeWindow (no days, no times) matches always.\n\n The event time is converted to the wall-clock time of timezone and compared\n against the window, so daylight saving changes need no special handling:\n - days empty means every day.\n - start_time and end_time empty mean the whole day.\n - start_time is inclusive and end_time is exclusive.\n - when end_time is earlier than start_time the window crosses midnight and\n   belongs to the day it starts on (days=[MONDAY], 22:00-06:00 covers Monday\n   22:00 to Tuesday 06:00).\ntime_window.start_ne_end // start_time and end_time must differ\ntime_window.time_format // start_time and end_time must be HH:MM in 24-hour format\ntime_window.times_together // start_time and end_time must be both set or both empty\ntime_window.timezone_required // timezone is required unless the window is empty\n"
+      },
+      "zonyx.alerts.v1.UpdateRuleRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "id",
+            "minLength": 1,
+            "description": "id is the unique identifier of the rule to update."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "title": "name",
+            "maxLength": 128,
+            "minLength": 1,
+            "description": "name is the new human-readable name of the rule."
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "title": "enabled",
+            "description": "enabled is whether the rule is evaluated."
+          },
+          "zoneSelector": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.ZoneSelector"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "zone_selector",
+            "description": "zone_selector replaces the zone selector. Send an empty selector to apply to every zone."
+          },
+          "timeWindow": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.TimeWindow"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "time_window",
+            "description": "time_window replaces the time window. Send an empty window to apply always."
+          },
+          "action": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.RuleAction"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "not": {
+              "enum": [
+                "RULE_ACTION_UNSPECIFIED"
+              ]
+            },
+            "title": "action",
+            "description": "action is the new action of the rule.\nenum.defined_only = true\n"
+          },
+          "priority": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "title": "priority",
+            "format": "int32",
+            "description": "priority is the new priority of the rule."
+          },
+          "tagSelector": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.TagSelector"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "tag_selector",
+            "description": "tag_selector replaces the tag selector. Send an empty selector to apply to every tag."
+          },
+          "trigger": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.AlertTrigger"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "not": {
+              "enum": [
+                "ALERT_TRIGGER_UNSPECIFIED"
+              ]
+            },
+            "title": "trigger",
+            "description": "trigger is the new situation the rule applies to.\nenum.defined_only = true\n"
+          },
+          "cooldownSeconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "title": "cooldown_seconds",
+            "maximum": 86400,
+            "description": "cooldown_seconds is the new cooldown of the rule; 0 removes it."
+          }
+        },
+        "title": "UpdateRuleRequest",
+        "additionalProperties": false,
+        "description": "UpdateRuleRequest updates a rule. Only the fields that are set are changed;\n a request that sets none changes nothing and returns the rule as it is. The\n resulting rule is validated as a whole (e.g. cooldown_seconds with a SUPPRESS\n action is rejected with INVALID_ARGUMENT). Concurrent updates are not\n detected: the last write wins."
+      },
+      "zonyx.alerts.v1.UpdateRuleResponse": {
+        "type": "object",
+        "properties": {
+          "rule": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.Rule"
+              }
+            ],
+            "title": "rule",
+            "description": "rule is the updated rule."
+          }
+        },
+        "title": "UpdateRuleResponse",
+        "additionalProperties": false,
+        "description": "UpdateRuleResponse returns the updated rule."
+      },
+      "zonyx.alerts.v1.UpdateTagRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "id",
+            "minLength": 1,
+            "description": "id is the unique identifier of the tag to update."
+          },
+          "phoneNumbers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^\\+[1-9][0-9]{1,14}$"
+            },
+            "title": "phone_numbers",
+            "maxItems": 10,
+            "uniqueItems": true,
+            "description": "phone_numbers are the new phone numbers, in E.164 format. When non-empty,\n replaces the existing list."
+          },
+          "status": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.TagStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "not": {
+              "enum": [
+                "TAG_STATUS_UNSPECIFIED"
+              ]
+            },
+            "title": "status",
+            "description": "status is the new registration status of the tag.\nenum.defined_only = true\n"
+          }
+        },
+        "title": "UpdateTagRequest",
+        "additionalProperties": false,
+        "description": "UpdateTagRequest updates a registered tag. Only the fields that are set are changed."
+      },
+      "zonyx.alerts.v1.UpdateTagResponse": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/zonyx.alerts.v1.Tag"
+              }
+            ],
+            "title": "tag",
+            "description": "tag is the updated tag."
+          }
+        },
+        "title": "UpdateTagResponse",
+        "additionalProperties": false,
+        "description": "UpdateTagResponse returns the updated tag."
+      },
+      "zonyx.alerts.v1.ZoneSelector": {
+        "type": "object",
+        "properties": {
+          "zoneIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "title": "zone_ids",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "description": "zone_ids are the zone identifiers (LocationEvent.location_zone_ids) the\n selector matches."
+          }
+        },
+        "title": "ZoneSelector",
+        "additionalProperties": false,
+        "description": "ZoneSelector restricts a rule to a set of zones. A zone matches when its id\n is in zone_ids. An empty selector matches every zone."
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Bearer token sent in the \"Authorization\" header."
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "IngestService",
+      "description": "IngestService receives events from a location provider. It is independent of\n the delivery channel (message queue, task queue or direct HTTP): any channel\n that POSTs the event as the JSON request body can feed it.\n\n Delivery is at-least-once, so the same event may arrive more than once;\n handlers deduplicate on the event's event_id. A non-2xx response may cause\n the channel to deliver the event again."
+    },
+    {
+      "name": "TagRegistryService",
+      "description": "TagRegistryService manages the tags that are allowed to trigger alerts."
+    },
+    {
+      "name": "RuleEngineService",
+      "description": "RuleEngineService manages the rules that decide whether an alert is emitted\n (see Rule for the evaluation). Errors: INVALID_ARGUMENT for a request that\n fails validation, NOT_FOUND for an unknown rule id, and RESOURCE_EXHAUSTED when\n the service limit on the number of rules is reached."
+    },
+    {
+      "name": "AlertHistoryService",
+      "description": "AlertHistoryService exposes the history of alerts that were evaluated."
+    }
+  ]
+}
